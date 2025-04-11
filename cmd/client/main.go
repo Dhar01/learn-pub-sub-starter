@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/gamelogic"
@@ -17,8 +18,8 @@ func main() {
 		log.Fatalf("amqp connection error: %v", err)
 	}
 
-	// defer conn.Close()
-	// log.Println("Peril game server connected to RabbitMQ!")
+	defer conn.Close()
+	log.Println("Peril game server connected to RabbitMQ!")
 
 	username, err := gamelogic.ClientWelcome()
 	if err != nil {
@@ -31,6 +32,10 @@ func main() {
 	}
 
 	state := gamelogic.NewGameState(username)
+
+	if err := pubsub.SubscribeJSON(conn, routing.ExchangePerilDirect, routing.PauseKey+"."+username, routing.PauseKey, pubsub.Transient, handlerPause(state)); err != nil {
+		log.Fatalf(err.Error())
+	}
 
 	for {
 		inp := gamelogic.GetInput()
@@ -74,4 +79,12 @@ func main() {
 	// signal.Notify(signalChan, os.Interrupt)
 	// <-signalChan
 
+}
+
+func handlerPause(gs *gamelogic.GameState) func(routing.PlayingState) {
+	return func(ps routing.PlayingState) {
+		defer fmt.Print("> ")
+
+		gs.HandlePause(ps)
+	}
 }

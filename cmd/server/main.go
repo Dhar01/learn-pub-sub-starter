@@ -26,6 +26,11 @@ func main() {
 		log.Fatalf("can't create a new channel: %v", err)
 	}
 
+	_, _, err = pubsub.DeclareAndBind(conn, routing.ExchangePerilTopic, routing.GameLogSlug, routing.GameLogSlug+".*", pubsub.Durable)
+	if err != nil {
+		log.Fatalf("can't get channel and queue, Error: %v", err)
+	}
+
 	var paused bool
 	gamelogic.PrintServerHelp()
 
