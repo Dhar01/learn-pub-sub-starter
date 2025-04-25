@@ -8,9 +8,18 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
+type AckType int
+type SimpleQueueType int
+
 const (
-	Transient = 0
-	Durable   = 1
+	TransientQueue SimpleQueueType = iota
+	DurableQueue                   = 1
+)
+
+const (
+	Ack AckType = iota
+	NackDiscard
+	NackRequeue
 )
 
 func PublishJSON[T any](ch *amqp.Channel, exchange, key string, val T) error {
@@ -51,7 +60,7 @@ func DeclareAndBind(
 	exclusive := false
 
 	// if queueType is transient
-	if simpleQueueType == Transient {
+	if simpleQueueType == int(TransientQueue) {
 		durable = false
 		autoDelete = true
 		exclusive = true
@@ -75,28 +84,44 @@ func SubscribeJSON[T any](
 	queueName,
 	key string,
 	simpleQueueType int,
-	handler func(T),
+	handler func(T) AckType,
 ) error {
 	chnl, que, err := DeclareAndBind(conn, exchange, queueName, key, simpleQueueType)
 	if err != nil {
-		return err
+		return fmt.Errorf("could not declare and bind queue: %v", err)
 	}
 
-	ch, err := chnl.Consume(que.Name, "", false, false, false, false, nil)
+	msgs, err := chnl.Consume(que.Name, "", false, false, false, false, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("could not consume messages: %v", err)
+	}
+
+	unmarshaller := func(data []byte) (T, error) {
+		var target T
+		err := json.Unmarshal(data, &target)
+		return target, err
 	}
 
 	go func() {
-		for delivery := range ch {
-			var msg T
-			if err := json.Unmarshal(delivery.Body, &msg); err != nil {
-				fmt.Println("Error unmarshaling the message:", err)
+		defer chnl.Close()
+		for msg := range msgs {
+			target, err := unmarshaller(msg.Body)
+			if err != nil {
+				fmt.Printf("could not unmarshal message: %v\n", err)
 				continue
 			}
 
-			handler(msg)
-			delivery.Ack(false)
+			switch handler(target) {
+			case Ack:
+				msg.Ack(false)
+				fmt.Println("Ack")
+			case NackDiscard:
+				msg.Nack(false, false)
+				fmt.Println("NackDiscard")
+			case NackRequeue:
+				msg.Nack(false, true)
+				fmt.Println("NackRequeue")
+			}
 		}
 	}()
 
