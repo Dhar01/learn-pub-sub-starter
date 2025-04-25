@@ -31,19 +31,11 @@ func main() {
 		routing.ExchangePerilDirect,
 		routing.PauseKey+"."+username,
 		routing.PauseKey,
-		pubsub.Transient,
+		int(pubsub.TransientQueue),
 	)
 	if err != nil {
 		log.Fatalf("can't get channel and queue. Error: %v", err)
 	}
-
-	// _, _, err = pubsub.DeclareAndBind(
-	// 	conn,
-	// 	routing.ExchangePerilTopic,
-	// 	routing.ArmyMovesPrefix+"."+username,
-	// 	routing.PauseKey,
-	// 	pubsub.Transient,
-	// )
 
 	state := gamelogic.NewGameState(username)
 
@@ -52,7 +44,7 @@ func main() {
 		routing.ExchangePerilDirect,
 		routing.PauseKey+"."+username,
 		routing.PauseKey,
-		pubsub.Transient,
+		int(pubsub.TransientQueue),
 		handlerPause(state),
 	); err != nil {
 		log.Fatalf("Subscribe error: %v", err)
@@ -63,7 +55,7 @@ func main() {
 		routing.ExchangePerilTopic,
 		routing.ArmyMovesPrefix+"."+username,
 		routing.ArmyMovesPrefix+".*",
-		pubsub.Transient,
+		int(pubsub.TransientQueue),
 		handlerMove(state),
 	); err != nil {
 		log.Fatalf("Subscribe error: %v", err)
@@ -131,17 +123,29 @@ func main() {
 
 }
 
-func handlerPause(gs *gamelogic.GameState) func(routing.PlayingState) {
-	return func(ps routing.PlayingState) {
+func handlerPause(gs *gamelogic.GameState) func(routing.PlayingState) pubsub.AckType {
+	return func(ps routing.PlayingState) pubsub.AckType {
 		defer fmt.Print("> ")
-
 		gs.HandlePause(ps)
+		return pubsub.Ack
 	}
 }
 
-func handlerMove(gs *gamelogic.GameState) func(gamelogic.ArmyMove) {
-	return func(move gamelogic.ArmyMove) {
+func handlerMove(gs *gamelogic.GameState) func(gamelogic.ArmyMove) pubsub.AckType {
+	return func(move gamelogic.ArmyMove) pubsub.AckType {
 		defer fmt.Print("> ")
-		gs.HandleMove(move)
+
+		moveOutCome := gs.HandleMove(move)
+		switch moveOutCome {
+		case gamelogic.MoveOutcomeSamePlayer:
+			return pubsub.NackDiscard
+		case gamelogic.MoveOutComeSafe:
+			return pubsub.Ack
+		case gamelogic.MoveOutcomeMakeWar:
+			return pubsub.Ack
+		}
+
+		fmt.Println("error: unknown move outcome")
+		return pubsub.NackDiscard
 	}
 }
