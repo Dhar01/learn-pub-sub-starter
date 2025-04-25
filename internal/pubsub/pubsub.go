@@ -28,19 +28,10 @@ func PublishJSON[T any](ch *amqp.Channel, exchange, key string, val T) error {
 		return err
 	}
 
-	ctx := context.Background()
-	mandatory := false
-	immediate := false
-	msg := amqp.Publishing{
+	return ch.PublishWithContext(context.Background(), exchange, key, false, false, amqp.Publishing{
 		ContentType: "application/json",
 		Body:        valByte,
-	}
-
-	if err := ch.PublishWithContext(ctx, exchange, key, mandatory, immediate, msg); err != nil {
-		return err
-	}
-
-	return nil
+	})
 }
 
 func DeclareAndBind(
@@ -52,27 +43,23 @@ func DeclareAndBind(
 ) (*amqp.Channel, amqp.Queue, error) {
 	chnl, err := conn.Channel()
 	if err != nil {
-		return wrapDeclareBindError(err)
+		return wrapDeclareBindError(fmt.Errorf("couldn't create channel: %v", err))
 	}
 
-	durable := true
-	autoDelete := false
-	exclusive := false
-
-	// if queueType is transient
-	if simpleQueueType == int(TransientQueue) {
-		durable = false
-		autoDelete = true
-		exclusive = true
-	}
-
-	queue, err := chnl.QueueDeclare(queueName, durable, autoDelete, exclusive, false, nil)
+	queue, err := chnl.QueueDeclare(
+		queueName,
+		simpleQueueType == DurableQueue,
+		simpleQueueType != DurableQueue,
+		simpleQueueType != DurableQueue,
+		false,
+		nil,
+	)
 	if err != nil {
-		return wrapDeclareBindError(err)
+		return wrapDeclareBindError(fmt.Errorf("couldn't declare queue: %v", err))
 	}
 
 	if err = chnl.QueueBind(queueName, key, exchange, false, nil); err != nil {
-		return wrapDeclareBindError(err)
+		return wrapDeclareBindError(fmt.Errorf("couldn't bind queue: %v", err))
 	}
 
 	return chnl, queue, nil
@@ -129,5 +116,5 @@ func SubscribeJSON[T any](
 }
 
 func wrapDeclareBindError(err error) (*amqp.Channel, amqp.Queue, error) {
-	return &amqp.Channel{}, amqp.Queue{}, err
+	return nil, amqp.Queue{}, err
 }
