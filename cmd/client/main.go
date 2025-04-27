@@ -31,7 +31,7 @@ func main() {
 		routing.ExchangePerilDirect,
 		routing.PauseKey+"."+username,
 		routing.PauseKey,
-		int(pubsub.TransientQueue),
+		pubsub.TransientQueue,
 	)
 	if err != nil {
 		log.Fatalf("can't get channel and queue. Error: %v", err)
@@ -44,7 +44,7 @@ func main() {
 		routing.ExchangePerilDirect,
 		routing.PauseKey+"."+username,
 		routing.PauseKey,
-		int(pubsub.TransientQueue),
+		pubsub.TransientQueue,
 		handlerPause(state),
 	); err != nil {
 		log.Fatalf("Subscribe error: %v", err)
@@ -55,7 +55,7 @@ func main() {
 		routing.ExchangePerilTopic,
 		routing.ArmyMovesPrefix+"."+username,
 		routing.ArmyMovesPrefix+".*",
-		int(pubsub.TransientQueue),
+		pubsub.TransientQueue,
 		handlerMove(state),
 	); err != nil {
 		log.Fatalf("Subscribe error: %v", err)
