@@ -12,8 +12,12 @@ type AckType int
 type SimpleQueueType int
 
 const (
+	ArgDeadLetterExchange = "x-dead-letter-exchange"
+)
+
+const (
 	TransientQueue SimpleQueueType = iota
-	DurableQueue                   = 1
+	DurableQueue
 )
 
 const (
@@ -39,7 +43,7 @@ func DeclareAndBind(
 	exchange,
 	queueName,
 	key string,
-	simpleQueueType int,
+	simpleQueueType SimpleQueueType,
 ) (*amqp.Channel, amqp.Queue, error) {
 	chnl, err := conn.Channel()
 	if err != nil {
@@ -52,7 +56,9 @@ func DeclareAndBind(
 		simpleQueueType != DurableQueue,
 		simpleQueueType != DurableQueue,
 		false,
-		nil,
+		amqp.Table{
+			ArgDeadLetterExchange: "peril_dlx",
+		},
 	)
 	if err != nil {
 		return wrapDeclareBindError(fmt.Errorf("couldn't declare queue: %v", err))
@@ -70,7 +76,7 @@ func SubscribeJSON[T any](
 	exchange,
 	queueName,
 	key string,
-	simpleQueueType int,
+	simpleQueueType SimpleQueueType,
 	handler func(T) AckType,
 ) error {
 	chnl, que, err := DeclareAndBind(conn, exchange, queueName, key, simpleQueueType)
