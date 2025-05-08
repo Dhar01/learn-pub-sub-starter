@@ -58,7 +58,18 @@ func main() {
 		pubsub.TransientQueue,
 		handlerMove(state, chnl),
 	); err != nil {
-		log.Fatalf("Subscribe error: %v", err)
+		log.Fatalf("could not subscribe to army move: %v", err)
+	}
+
+	if err = pubsub.SubscribeJSON(
+		conn,
+		string(routing.ExchangePerilTopic),
+		string(routing.WarRecognitionsPrefix),
+		string(routing.WarRecognitionsPrefix)+".*",
+		pubsub.DurableQueue,
+		handlerWar(state),
+	); err != nil {
+		log.Fatalf("could not subscribe to war declaration: %v", err)
 	}
 
 	for {
