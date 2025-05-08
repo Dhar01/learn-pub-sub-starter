@@ -17,8 +17,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("amqp connection error: %v", err)
 	}
-
 	defer conn.Close()
+
 	log.Println("Peril game server connected to RabbitMQ!")
 
 	chnl, err := conn.Channel()
@@ -26,7 +26,13 @@ func main() {
 		log.Fatalf("can't create a new channel: %v", err)
 	}
 
-	_, _, err = pubsub.DeclareAndBind(conn, routing.ExchangePerilTopic, routing.GameLogSlug, routing.GameLogSlug+".*", pubsub.DurableQueue)
+	_, _, err = pubsub.DeclareAndBind(
+		conn,
+		routing.ExchangePerilTopic,
+		routing.GameLogSlug,
+		routing.GameLogSlug+".*", pubsub.DurableQueue,
+	)
+
 	if err != nil {
 		log.Fatalf("can't get channel and queue, Error: %v", err)
 	}
@@ -53,12 +59,16 @@ func main() {
 			log.Println("invalid command input")
 		}
 
-		if err = pubsub.PublishJSON(chnl, routing.ExchangePerilDirect, routing.PauseKey, routing.PlayingState{
-			IsPaused: paused,
-		}); err != nil {
+		if err = pubsub.PublishJSON(
+			chnl,
+			routing.ExchangePerilDirect,
+			routing.PauseKey,
+			routing.PlayingState{
+				IsPaused: paused,
+			},
+		); err != nil {
 			log.Fatalf("can't publish JSON: %v", err)
 		}
-
 	}
 
 	// // shutting down
